@@ -1,0 +1,20 @@
+Package: paaPack
+Title: Tools of Principal Amalgamation Analysis on Dimension Reduction for Compositional Data
+Version: 0.0-1
+Date: 2022-03-30
+Authors@R: c(
+    person(given = "Yan", family = "Li",
+           email = "yan.4.li@uconn.edu",
+           role = c("aut", "cre")),
+    person(given = "Kun", family = "Chen", 
+	   role = "aut"),
+    person(given = "Gen", family = "Li", 
+           role = "aut"))
+Maintainer: Yan Li <yan.4.li@uconn.edu>
+Description: Principal amalgamation analysis (PAA) with compositional data, including hierarchical PAA methods with/without taxonomy tree guidance proposed by Li et al. (2022) "Principal Amalgamation Analysis for Microbiome Data".
+Depends: R (>= 3.5.0)
+Imports: dendextend, MASS, utils, stats, Rcpp (>= 0.12.0), ggplot2, RColorBrewer, ggforce, vegan
+LinkingTo: Rcpp, RcppArmadillo
+License: GPL (>= 3.0)
+Encoding: UTF-8
+RoxygenNote: 7.1.2
