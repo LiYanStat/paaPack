@@ -1,0 +1,317 @@
+---
+title: "Demo for the R package paaPack with the NICU Studies"
+author: |
+  | Yan Li, Gen Li and Kun Chen
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: bookdown::html_document2
+runtime: shiny
+---
+
+```{css, echo=FALSE}
+p {
+  font-size: 12pt;
+}
+
+.main-container {
+  max-width: 1600px;
+  margin-left: auto;
+  margin-right: auto;
+}
+```
+
+
+```{r setup, echo = FALSE, results = "hide", message = FALSE}
+options(width = 100)
+knitr::opts_chunk$set(fig.width = 16, fig.height = 9, dpi = 300,
+                      out.width = "90%", fig.align = "center",
+                      cache = TRUE)
+ipak <- function(pkg){
+  new.pkg <- pkg[!(pkg %in% installed.packages()[, "Package"])]
+  if (length(new.pkg))
+    install.packages(new.pkg, dependencies = TRUE)
+  sapply(pkg, require, character.only = TRUE, quietly = TRUE)
+  invisible(NULL)
+}
+pkgs <- c("Rcpp", "ggplot2", "gridExtra", "bookdown", "pheatmap", "gplots", "ggforce", "shiny", "shinyWidgets")
+ipak(pkgs)
+```
+
+
+# Overview
+
+The **paaPack** is designed to perform hierarchical Principal Amalgamation Analysis (HPAA) with or without the 
+guidance of taxonomic tree structure, and provide several useful graphical tools for visualizing the results of HPAA, 
+including 1) hierarchical dendrograms to visualize the full path of amalgamations, 2) the scree plot showing the percentage change 
+in the diversity loss along with the changes of number of compositions, and 3) the ordination plot showing the changes in the 
+between-sample distance patterns before and after HPAA with any given number of principal compositions (PC). In this tutorial, we 
+also provide a R shiny app to dynamically visualize the changes of ordination plots along with the path of HPAA, i.e., 
+from the largest number to the smallest number of PCs.
+
+## Set up
+
+```{r install_package, echo = TRUE, eval= TRUE, results = "hide", message = FALSE}
+install.packages("../Rpackage/paaPack_0.0-1.tar.gz", repos = NULL, type="source")
+library(paaPack)
+#### functions in paaPack
+help(hPAA)  #### fit HPAA models
+help(plotHPAA)  #### dendrogram showing the hierarchical amalgamation
+help(plotLine)  #### scree plot showing the percentage
+help(plotMDS)  #### ordination plot
+```
+
+```{r, echo=FALSE, results="hide", message = FALSE}
+## load the package
+library(paaPack)
+```
+
+The **paaPack** provides a main function `hPAA()` to perform the hierarchical Principal Amalgamation Analysis (HPAA). 
+To use the function, the analyst should provide:
+
++ The compositional data with row representing compositions for each subject and 
+  column recording the original components/taxa.
++ The taxonomic tree structure as a vector with dimension same as the number of taxa. The format of the taxonomic 
+  vector is the same as output format of the commonly used bioinformatics data processing software **Mothur**. 
+  That is, each element of the vector denotes the full taxonomic ranks from kingdom to genus, species level of the taxon, 
+  with ranks separated by semicolon. For example a typical element of the taxonomic vector could be
+  `k_Bacteria;p_Actinobacteria;c_Actinobacteria;o_Bifidobacteriales;f_Bifidobacteriaceae;g_Bifidobacterium;s_longum`.
+  The taxonomic structure is optional. If taxonomy is not provided, the unconstrained HPAA without tree guidance is performed.
+  
++ The diversity measures used in the HPAA analysis, and indicate whether strong or weak taxonomic hierarchy is applied in the analysis.
+
+Then a set of plotting methods are provided taking the object of class "hPAA" from the `hPAA()` as input, including `plotHPAA()` 
+for the dendrogram showing the full path of hierarchical amalgamation, `plotLine()` for the scree plot showing the percentage change in 
+the diversity loss with the changing in the number of principal compositions, and `plotMDS()` for the ordination plot showing the changes 
+in the between-sample distance patterns before and after HPAA. In each function, a group of graphical arguments for shaping the figures could be 
+specified. For details, the analyst could refer to the documentations of the functions using `help()`.
+
+# Illustration
+
+In the following sections, we use the NICU data to illustrate the visualization tools provided by **paaPack**. The codes for constructing 
+all the figures are documented in the corresponding code chunks of the source R markdown file. These tools can be extremely useful for 
+visualizing and understanding compositional data, as well as helping to determine the desired number of principal compositions in practice.
+
+```{r, echo=FALSE, results="hide", message = FALSE}
+#### fit the models for different diversity measures
+load("NICU.rda")
+## reconstruct the taxonomic tree structure and add labels for the loweast taxonomic rank to the structure.
+taxonomy[!grepl(pattern = "g__", taxonomy)] <-
+  paste0(taxonomy[!grepl(pattern = "g__", taxonomy)],
+         rownames(taxonomy)[!grepl(pattern = "g__", taxonomy)])
+method.list <- c("Simpson", "Shannon", "Bray-Curtis")
+for(method in method.list) {
+  tmp <- new.env()
+  tmp$datPlot.strong <- hPAA(compDat, method = method, taxonomy = taxonomy, strong = TRUE)  ## strong
+  tmp$datPlot.weak <- hPAA(compDat, method = method, taxonomy = taxonomy, strong = FALSE)  ## weak
+  tmp$datPlot.uc <- hPAA(compDat, method = method)  ## unconstraint
+  tmp$datPlot.uc$taxonomy <- taxonomy
+  eval(call("<-", as.name(method), tmp))
+}
+```
+
+
+## Dendrogram
+
+We construct a HPAA dendrogram to simultaneously visualize both the tree diagram of the successive amalgamations and the taxonomic 
+structure of the taxon using the function `plotHPAA()`. To illustrate, Figure \@ref(fig:dendrogram) shows the HPAA dendrogram from 
+performing HPAA with SDI loss and strong taxonomic hierarchy on the NICU data. The top part of figure shows the dendrogram of amalgamations, 
+where the $y-$axis shows the percentage decrease in total diversity as measured by SDI (on the log-scale) along the successive amalgamations, 
+from the bottom to the top. As such, any horizontal cut of the dendrogram at a desired level of diversity loss/preservation shows the 
+corresponding amalgamated data. In particular, each red dashed horizontal line indicates the steps at which the original data are aggregated 
+to a higher taxonomic rank. It shows that, for example, aggregating data to the order level (22 taxa or principal compositions left) through 
+HPAA leads to 22.3\% loss in total SDI. At the bottom part, we use color bars to show taxonomic structure of the taxa, where in each horizontal 
+bar taxa of the same color belong to the same category of that rank.
+
+```{r dendrogram, echo=FALSE, message=FALSE, fig.width=16, fig.height=9, out.width = "70%", fig.cap="The NICU data: Dendrogram of HPAA with SDI and strong taxonomic hierarchy."}
+par(mfrow = c(1, 1), mar = c(5.1, 4.1, 2.1, 0.5), cex.lab = 1.4)
+plotHPAA(object = Simpson$datPlot.strong, taxonomy = TRUE, rank.line = TRUE,
+         lab.cex = 1, 
+         main = "HPAA dendrogram with strong taxonomic hierarchy",
+         ylab = "Percentage change (%)",
+         y_scale = 1.1, y_shift = -0.5, jitters = TRUE,
+         cex.rowLabels = 1.3 ## rank labels
+         )
+```
+
+Then we display the results under different ways of taxonomy guidance of each loss function in one combined figure for intuitive 
+comparison. Figures \@ref(fig:dendro-simpson) and \@ref(fig:dendro-bray-curtis) show HPAA dendrograms with SDI loss and BC loss, 
+respectively, under all three levels of taxonomy guidance. Not surprisingly, the patterns of amalgamations vary under different settings. 
+Without taxonomic constrain, the change in diversity appears to be very smooth along the amalgamations, but the resulting principal 
+compositions may not be easily interpretable, as indicated by the mixed color patterns in the color bars of the taxonomic rank. On the 
+other hand, for the setting of strong taxonomic hierarchy, while the principal compositions are forced to closely follow the taxonomic 
+structure, the percentage change in diversity tends to exhibit dramatic jumps, especially at the steps that the last remaining taxon at 
+a lower taxonomic rank is forced to be aggregated to a higher rank. As a compromise, for the setting of weak taxonomic hierarchy, the 
+resulting principal compositions remain interpretable, and the percentage change in diversity remains smooth and can be quite close to 
+that of the unconstrained setting in the early stage of amalgamations.
+
+```{r, echo = FALSE, message=FALSE}
+datastr.list <- c("datPlot.uc", "datPlot.weak", "datPlot.strong")
+plottitle.list <- 
+  c("HPAA dendrogram (unconstrained)",
+    "HPAA dendrogram with weak taxonomic hierarchy",
+    "HPAA dendrogram with strong taxonomic hierarchy")
+```
+
+```{r dendro-simpson, echo=FALSE, message=FALSE, fig.width=23, fig.height=6, fig.cap="The NICU data: HPAA dendrograms with SDI and different constrains on taxonomic hierarchy."}
+par(mfrow = c(1, 3))
+for(i in 1:length(datastr.list)) {
+  ## get the corresponding result of the selected taxonomy guidance
+  datastr <- datastr.list[i]
+  plottitle <- plottitle.list[i]
+  plotData <- get(datastr, envir = Simpson)
+  ## plot the dendrogram
+  par(mar = c(5.1, 4.1, 2.1, 0.5), cex.lab = 1.4)
+  plotHPAA(object = plotData, taxonomy = TRUE, rank.line = FALSE,
+         main = plottitle,
+         ylab = "Percentage change (%)",
+         lab.cex = 1, y_scale = 1.1, y_shift = -0.45, jitters = TRUE,
+         cex.rowLabels = 1.3 ## rank labels
+         )
+}
+```
+
+```{r dendro-bray-curtis, echo=FALSE, message=FALSE, fig.width=23, fig.height=6, fig.cap="The NICU data: HPAA dendrograms with Bray-Curtis and different constrains on taxonomic hierarchy."}
+par(mfrow = c(1, 3))
+for(i in 1:length(datastr.list)) {
+  ## get the corresponding result of the selected taxonomy guidance
+  datastr <- datastr.list[i]
+  plottitle <- plottitle.list[i]
+  plotData <- get(datastr, envir = `Bray-Curtis`)
+  ## plot the dendrogram
+  par(mar = c(5.1, 4.1, 2.1, 0.5), cex.lab = 1.4)
+  plotHPAA(object = plotData, taxonomy = TRUE, rank.line = FALSE,
+         main = plottitle,
+         ylab = "Percentage change (%)",
+         lab.cex = 1, y_scale = 1.1, y_shift = -0.6, jitters = TRUE,
+         cex.rowLabels = 1.3 ## rank labels
+         )
+}
+```
+
+
+## Scree Plot
+
+Next we use the function `plotLine()` to construct the scree plot for the results of HPAA under different types of taxonomy guidance. 
+The scree plot shows the percentage change in the diversity loss as a function of the number of principal compositions. 
+Figure \@ref(fig:percent-line) shows the scree plots from performing HPAA on the NICU data under different settings. The difference 
+among the three levels of taxonomic guidance is very revealing, which confirms the previous observation from the dendrograms that 
+the setting of weak taxonomic hierarchy reaches a good balance between preserving information and interpretability.
+
+```{r percent-line, echo=FALSE, message=FALSE, fig.width=15, fig.height=5, fig.cap="The NICU data: Scree plots for HPAA (Percentage change in diversity vs. number of principal compositions)."}
+layout(matrix(c(1, 2, 3, 4, 4, 4), ncol=3, byrow=TRUE), heights=c(4.5, 0.5))
+par(mar=c(5.1,4.1,4.1,2.1),cex.main = 1.4, cex.lab = 1.4)
+## the vector specifies the corresponding environment variable for the different methods
+dat.list <- c("Simpson", "Shannon", "Bray-Curtis")
+for(k in 1:3) {
+  ## get the corresponding environment variable for the selected method
+  dat <- get(dat.list[k])
+  for(i in 1:length(datastr.list)) {
+    ## get the results of different constraints, unconstrained, weak hierarchy, and strong hierarchy respectively.
+    datastr <- datastr.list[i]
+    plotData <- get(datastr, envir = dat)
+    ## plot scree line.
+    plotLine(plotData, col = i, xaxt = 'n', lty = i, pch = i)
+    par(new= TRUE)
+  }
+  axis(1, at=1:length(plotData$height), labels=factor(length(plotData$height):1))
+  par(new=FALSE)
+}
+par(mai=c(0.1,0,0,0), cex = 0.8)
+plot.new()
+legend(x="center", ncol=3,legend=c("Unconstrained","Weak hierarchy","Strong hierarchy"),
+       lty = 1:3, col = 1:3, pch = 1:3)
+```
+
+
+## Ordination plot
+
+Finally, we use `plotMDS()` to construct ordination plot to visualize the changes in the between-sample distance patterns before and 
+after HPAA with any given number of principal compositions. Specifically, in the provided function we perform the non-metric multidimensional 
+scaling (NMDS) analysis with Bray–Curtis dissimilarity on the combined original data and the principal compositions from HPAA, which 
+produces a low-dimensional ordination plot of all samples before and after amalgamation. For each sample, it is represented by a pair 
+of points from either the original data or the principal compositions; the smallest circle that covers the pair is drawn, whose radius 
+then indicates the level of distortion due to HPAA data reduction. The ordination plots from performing HPAA on the NICU data with three different 
+loss functions and weak taxonomic hierarchy are shown in Figure \@ref(fig:MDS), in which 20 principal compositions are kept (the number of PCs can be 
+updated via the corresponding parameter of the plotMDS function). All three settings preserve the between-sample diversity reasonably well, 
+as indicated by the fact that the circles generally have a small radius; as expected, HPAA with the BC loss performs the best as it directly targets on preserving between-sample diversity.
+
+```{r MDS, echo=FALSE, message=FALSE, fig.width=14, fig.height=5.5, fig.cap="The NICU data: 2D NMDS ordination plots for comparing original and principal com- positions from HPAA with weak taxonomic hierarchy."}
+dat.list <- c("Simpson", "Shannon", "Bray-Curtis")
+for(k in 1:length(dat.list)) {
+    ## get the corresponding environment variable for the selected method
+  dat <- get(dat.list[k])
+  ## select only the result of weak hierarchy according to the previous observations
+  plotData <- get("datPlot.weak", envir = dat)
+  ## set the cutoff and plot the MDS
+  x <- paste("p", k, sep="")
+  p <- plotMDS(plotData, cutoff = 20, size = 1.2)
+  eval(call("<-", as.name(x), p))
+}
+get_legend<-function(myggplot){
+  tmp <- ggplot_gtable(ggplot_build(myggplot))
+  leg <- which(sapply(tmp$grobs, function(x) x$name) == "guide-box")
+  legend <- tmp$grobs[[leg]]
+  return(legend)
+}
+## get the legend of the figure
+legend <- get_legend(p1)
+p1$theme$legend.position <- p2$theme$legend.position <- p3$theme$legend.position <- "none"
+## combine all the figures together
+grid.arrange(p1, p2, p3, legend, 
+             heights=c(5, 1), 
+             layout_matrix = rbind(c(1, 2, 3), cbind(4, 4, 4)))
+```
+
+
+## R Shiny App
+
+In this section, we construct an interactive R Shiny app to combine the scree plots and the ordination plots described in
+the previous section. The Shiny app allows users to view the comparison of amalgamated data and the orgininal data with different
+number of principle components.
+
+```{r, echo=FALSE, cache=FALSE}
+## load the data for the Simpson's index under weak hierarchy
+plotData <- get("datPlot.weak", envir = Simpson)
+#### ui.R
+ui <- fluidPage(
+  titlePanel(paste("NMDS Plot: HPAA with ", plotData$diversity.method, " index")),  # Add a title panel
+  sidebarLayout(
+    sidebarPanel(
+      sliderTextInput(inputId = "Cutoff", label = "Number of PCs",
+                      choices = seq(from = ncol(plotData$compDat) - 1, to = 2),
+                      selected = 40,  width = '100%'),
+      width = 6
+    ),
+    mainPanel(
+      column(6, align="center", plotOutput("myPercent", width = "80%", height = "600px")),
+      column(6, align="center", plotOutput("myMDS", height = "600px")),
+      width = 12
+    )
+  )
+)
+
+#### server.R
+server <- function(input, output) {
+  #### output: the MDS plot
+  output$myMDS <- renderPlot({
+    plotMDS(plotData, cutoff = input$Cutoff)
+  })
+  output$myPercent <- renderPlot({
+    #### the percent change line plot
+    plotLine(plotData, col = 1, lty = 1)
+    pData <- paaPack:::pComp(plotData)
+    #### number of PCs input$Cutoff
+    #### mark the current step
+    points(ncol(plotData$compDat) - input$Cutoff, pData$height[ncol(compDat) - input$Cutoff], col = "red", pch = 1)
+    points(ncol(plotData$compDat) - input$Cutoff, pData$height[ncol(compDat) - input$Cutoff], col = "red", pch = "+")
+    abline(v = ncol(plotData$compDat) - input$Cutoff, col = "red", lty = 2)
+    abline(h = pData$height[ncol(plotData$compDat) - input$Cutoff], col = "red", lty = 2)
+    text(-1, pData$height[ncol(plotData$compDat) - input$Cutoff] + 3 ,
+         labels = sprintf("Percentage Change: %s%%",
+                          round(pData$height[ncol(compDat) - input$Cutoff], 3)), pos = 4, col = "red")
+  })
+}
+
+## Run the app
+shinyApp(ui = ui, server = server,
+  options = list(height = 1000))
+```
