@@ -13,7 +13,7 @@ in the diversity loss along with the changes of number of compositions, and
 
 ## Installation
 
-One may install the latest version under development as follows:
+One may install the latest version under development as follows (Rtools may be required for installation):
 
 ```R
 install.packages(c("devtools"))
